@@ -151,14 +151,14 @@ export function useBreakTimeStatus() {
       return;
     }
     // Admins bypass non-working day and break restrictions
-    // if (role === 'admin') {
-    //   setIsBreakTime(false);
-    //   setIsNonWorkingDay(false);
-    //   setBreakEndTime(null);
-    //   setBreakLabel(null);
-    //   setNextWorkStart(null);
-    //   return;
-    // }
+    if (role === 'admin') {
+      setIsBreakTime(false);
+      setIsNonWorkingDay(false);
+      setBreakEndTime(null);
+      setBreakLabel(null);
+      setNextWorkStart(null);
+      return;
+    }
 
     // Allows testing logic by overriding state with localStorage overrides
     const testBreak = localStorage.getItem('test_break_lock');
