@@ -102,6 +102,7 @@ export function useUpdateUser() {
 
       // Bypass DB and update locally if RLS issues occur by applying to `localOverrides`
       let rlsBlocked = false;
+      let debugErrorStr = '';
 
       // 1. Update Profile (Department & Employee ID)
       if (departmentId !== undefined || employeeId !== undefined) {
@@ -117,6 +118,7 @@ export function useUpdateUser() {
 
         if (profileError || !updatedProfile || updatedProfile.length === 0) {
           rlsBlocked = true;
+          debugErrorStr += ` [Profile Error: ${profileError?.message || 'Empty response'}]`;
         }
       }
 
@@ -134,7 +136,7 @@ export function useUpdateUser() {
             .delete()
             .eq('user_id', userId);
 
-          if (deleteError) rlsBlocked = true;
+          if (deleteError) { rlsBlocked = true; debugErrorStr += ` [Delete Role Error: ${deleteError.message}]`; }
         }
 
         if (role !== 'none' as AppRole) {
@@ -142,7 +144,7 @@ export function useUpdateUser() {
             .from('user_roles')
             .insert([{ user_id: userId, role }]);
 
-          if (insertError) rlsBlocked = true;
+          if (insertError) { rlsBlocked = true; debugErrorStr += ` [Insert Role Error: ${insertError.message}]`; }
         }
       }
 
@@ -154,7 +156,7 @@ export function useUpdateUser() {
       };
 
       if (rlsBlocked) {
-        return { rlsBlocked: true };
+        return { rlsBlocked: true, debug: debugErrorStr };
       }
 
       return { rlsBlocked: false };
@@ -162,8 +164,8 @@ export function useUpdateUser() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       if (data?.rlsBlocked) {
-        toast.warning('Update masked locally. Supabase blocked the remote database save because your user lacks Admin profile permissions.', {
-          description: "Run the provided SQL script in your Supabase Dashboard to save changes permanently."
+        toast.warning('Database Error Blocked Save', {
+          description: data.debug || "Run the provided SQL script in your Supabase Dashboard to save changes permanently."
         });
       } else {
         toast.success('User updated successfully');
@@ -189,14 +191,7 @@ export function useDepartments() {
       } catch (e) { }
 
       // Fallback pseudo-departments
-      return [
-        { id: '550e8400-e29b-41d4-a716-526655440001', name: 'Administration', description: 'Internal HQ operations and support', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), head_user_id: null },
-        { id: '550e8400-e29b-41d4-a716-526655440002', name: 'Field Operations', description: 'On-ground execution and field management', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), head_user_id: null },
-        { id: '550e8400-e29b-41d4-a716-526655440003', name: 'Finance & Accounts', description: 'Accounting, budgeting, and payroll', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), head_user_id: null },
-        { id: '550e8400-e29b-41d4-a716-526655440004', name: 'Planning & Design', description: 'Strategy, architecture, and surveys', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), head_user_id: null },
-        { id: '550e8400-e29b-41d4-a716-526655440005', name: 'Projects Division', description: 'Overseeing all major active projects', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), head_user_id: null },
-        { id: '550e8400-e29b-41d4-a716-526655440006', name: 'Technical Division', description: 'Core technical and engineering tasks', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), head_user_id: null },
-      ] as Department[];
+      return [] as Department[];
     },
   });
 }

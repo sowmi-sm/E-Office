@@ -8,8 +8,10 @@ import { useAuth, getRoleLabel } from '@/contexts/AuthContext';
 import { useDashboardStats, useTasks, useProjects, useTeams } from '@/hooks/useRoleBasedData';
 import { Loader2, Target, CheckSquare, Users, FolderKanban, TrendingUp, ArrowRight, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
 
 export function OfficerDashboard() {
+  const navigate = useNavigate();
   const { profile, role } = useAuth();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: tasks, isLoading: tasksLoading } = useTasks();
@@ -40,7 +42,7 @@ export function OfficerDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="accent" className="gap-2">
+          <Button variant="accent" className="gap-2" onClick={() => navigate('/performance')}>
             <TrendingUp className="h-4 w-4" />
             Review Performance
           </Button>

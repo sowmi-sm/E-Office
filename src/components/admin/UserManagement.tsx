@@ -36,7 +36,7 @@ export function UserManagement() {
         userId,
         role: selectedRole,
         departmentId: selectedDepartment,
-        employeeId: selectedEmployeeId
+        employeeId: selectedEmployeeId === '' ? null : selectedEmployeeId
       });
       setEditingUserId(null);
       setSelectedRole(null);

@@ -14,18 +14,7 @@ export function BreakTimeLock() {
   const roleCategory = getRoleCategory(role);
   const unblockUser = useUnblockUser();
 
-  // Log out user automatically when break time starts
-  useEffect(() => {
-    if (isBreakTime) {
-      if (localStorage.getItem('test_break_lock') !== 'true') {
-        const timeout = setTimeout(() => {
-          signOut();
-        }, 3000); // 3-second delay to show the warning before logging out
-
-        return () => clearTimeout(timeout);
-      }
-    }
-  }, [isBreakTime, signOut]);
+  // The system will only show the overlay and wait for the break to end naturally
 
   // Show block screen if user is blocked
   if (activeBlock) {
@@ -72,7 +61,13 @@ export function BreakTimeLock() {
     );
   }
 
-  if (!isBreakTime && !isNonWorkingDay) return null;
+  if (!isBreakTime && !isNonWorkingDay) {
+    return (
+      <div className="fixed top-20 right-4 z-[9999] bg-black/80 text-white text-xs p-2 rounded pointer-events-none font-mono">
+        Debug: t={new Date().toTimeString().slice(0, 5)} | r={role} | break={isBreakTime.toString()} | off={isNonWorkingDay.toString()} | end={breakEndTime} | cfg={activeBlock ? 'blk' : 'ok'}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex items-center justify-center">
@@ -90,11 +85,8 @@ export function BreakTimeLock() {
               <p className="text-sm text-muted-foreground">System will unlock at</p>
               <p className="text-2xl font-bold text-primary mt-1">{breakEndTime}</p>
             </div>
-            <p className="text-sm text-destructive font-medium">
-              ⚠️ You are being logged out so productivity tracking can pause. Please log in again within 10 minutes of the break ending!
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Logging back in later than the 10-minute automated grace period will result in an account block.
+            <p className="text-sm text-muted-foreground mt-4">
+              Your session will automatically unlock when the break time is over.
             </p>
 
             {localStorage.getItem('test_break_lock') === 'true' && (

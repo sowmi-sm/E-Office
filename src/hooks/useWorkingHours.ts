@@ -139,14 +139,14 @@ export function useBreakTimeStatus() {
 
   const checkStatus = useCallback(() => {
     // Admins bypass non-working day and break restrictions
-    if (role === 'admin') {
-      setIsBreakTime(false);
-      setIsNonWorkingDay(false);
-      setBreakEndTime(null);
-      setBreakLabel(null);
-      setNextWorkStart(null);
-      return;
-    }
+    // if (role === 'admin') {
+    //   setIsBreakTime(false);
+    //   setIsNonWorkingDay(false);
+    //   setBreakEndTime(null);
+    //   setBreakLabel(null);
+    //   setNextWorkStart(null);
+    //   return;
+    // }
 
     // Allows testing logic by overriding state with localStorage overrides
     const testBreak = localStorage.getItem('test_break_lock');
@@ -170,15 +170,28 @@ export function useBreakTimeStatus() {
     }
 
     const firstConfig = todayConfigs[0];
-    if (!firstConfig.is_working_day) {
+    
+    // Slice DB time fields to compare 'HH:MM' with bulletproof null fallbacks
+    const safeWorkStart = firstConfig?.work_start_time || '09:00:00';
+    const safeWorkEnd = firstConfig?.work_end_time || '18:00:00';
+    
+    const isAfterWork = currentTime >= safeWorkEnd.slice(0, 5);
+    const isBeforeWork = currentTime < safeWorkStart.slice(0, 5);
+
+    if (!firstConfig.is_working_day || isAfterWork || isBeforeWork) {
       setIsNonWorkingDay(true);
       setIsBreakTime(false);
-      for (let i = 1; i <= 7; i++) {
-        const nextDay = (currentDay + i) % 7;
-        const nextConfig = config.find(c => c.day_of_week === nextDay && c.is_working_day);
-        if (nextConfig) {
-          setNextWorkStart(`${getDayName(nextDay)} ${formatToAMPM(nextConfig.work_start_time)}`);
-          break;
+      
+      if (firstConfig.is_working_day && isBeforeWork) {
+        setNextWorkStart(`Today ${formatToAMPM(safeWorkStart)}`);
+      } else {
+        for (let i = 1; i <= 7; i++) {
+          const nextDay = (currentDay + i) % 7;
+          const nextConfig = config.find(c => c.day_of_week === nextDay && c.is_working_day);
+          if (nextConfig) {
+            setNextWorkStart(`${getDayName(nextDay)} ${formatToAMPM(nextConfig.work_start_time || '09:00:00')}`);
+            break;
+          }
         }
       }
       return;
@@ -210,7 +223,7 @@ export function useBreakTimeStatus() {
     if (!config || !user || config.length === 0) return;
 
     // Admins bypass late login checks
-    if (role === 'admin') return;
+    // if (role === 'admin') return;
 
     // Ignore if testing
     if (localStorage.getItem('test_break_lock') === 'true') return;
