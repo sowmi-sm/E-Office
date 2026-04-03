@@ -1,18 +1,68 @@
 import { useBreakTimeStatus } from '@/hooks/useWorkingHours';
 import { useCheckUserBlock, useUnblockUser } from '@/hooks/useUserBlock';
-import { Coffee, Moon, ShieldAlert, Unlock, PlayCircle } from 'lucide-react';
+import { Coffee, Moon, ShieldAlert, Unlock, PlayCircle, LogOut, Send, Loader2, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getRoleCategory } from '@/hooks/useRoleBasedData';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 
 export function BreakTimeLock() {
   const { isBreakTime, isNonWorkingDay, breakEndTime, breakLabel, nextWorkStart } = useBreakTimeStatus();
   const { data: activeBlock } = useCheckUserBlock();
-  const { role, user, signOut } = useAuth();
+  const { role, user, signOut, profile } = useAuth();
   const roleCategory = getRoleCategory(role);
   const unblockUser = useUnblockUser();
+
+  const [requestReason, setRequestReason] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
+
+  const handleRequestAccess = async () => {
+    if (!requestReason.trim() || !user) {
+      toast.error("Please provide a reason for the request");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      // Find all administrators to notify
+      const { data: admins, error: adminErr } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+
+      if (adminErr) throw adminErr;
+
+      if (admins && admins.length > 0) {
+        const notifications = admins.map(admin => ({
+          user_id: admin.user_id,
+          title: 'System Access Request',
+          message: `${profile?.full_name || user.email} is requesting immediate system access. Reason: "${requestReason}"`,
+          type: 'warning',
+          link: '/admin'
+        }));
+
+        const { error: notifyErr } = await supabase
+          .from('notifications')
+          .insert(notifications);
+
+        if (notifyErr) throw notifyErr;
+
+        setRequestSent(true);
+        toast.success("Request sent successfully. An administrator will review it.");
+        setRequestReason("");
+      } else {
+        toast.error("No administrators found to receive the request.");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send request");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // The system will only show the overlay and wait for the break to end naturally
 
@@ -121,6 +171,53 @@ export function BreakTimeLock() {
             )}
           </>
         )}
+
+        {/* Access Request Form */}
+        {!requestSent ? (
+          <div className="bg-muted/30 border border-border rounded-xl p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <MessageSquare className="h-4 w-4 text-primary" />
+              Need to work now? Request access
+            </div>
+            <Textarea
+              placeholder="Provide a valid reason for early access..."
+              value={requestReason}
+              onChange={(e) => setRequestReason(e.target.value)}
+              className="min-h-[80px] bg-background resize-none text-sm"
+              disabled={isSubmitting}
+            />
+            <Button 
+              className="w-full" 
+              onClick={handleRequestAccess}
+              disabled={isSubmitting || !requestReason.trim()}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Request to Admin
+                </>
+              )}
+            </Button>
+          </div>
+        ) : (
+          <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-5 text-center">
+            <p className="text-green-600 font-medium text-sm">
+              Your request was sent. Please wait for an admin to unlock your session.
+            </p>
+          </div>
+        )}
+
+        <div className="pt-4 border-t border-border mt-4">
+          <Button variant="ghost" className="text-muted-foreground" onClick={() => signOut()}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
       </div>
     </div>
   );
