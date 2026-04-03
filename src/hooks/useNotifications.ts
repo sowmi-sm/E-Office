@@ -10,6 +10,7 @@ export interface Notification {
     message: string;
     type: 'info' | 'success' | 'warning' | 'error';
     link: string | null;
+    sender_id: string | null;
     is_read: boolean;
     created_at: string;
 }
@@ -30,7 +31,7 @@ export function useNotifications() {
                 return [];
             }
 
-            return data as Notification[];
+            return (data as unknown) as Notification[];
         },
         enabled: !!user,
         refetchInterval: 10000, // Poll every 10 seconds for new notifications
@@ -101,6 +102,46 @@ export function useCreateNotification() {
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['notifications', variables.userId] });
+        },
+    });
+}
+
+export function useApproveAccessRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ senderId, notificationId }: { senderId: string; notificationId: string }) => {
+            // 1. Grant 4 hours access override in profile
+            const unlockUntil = new Date();
+            unlockUntil.setHours(unlockUntil.getHours() + 4);
+            
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({ unlock_until: unlockUntil.toISOString() } as any)
+                .eq('id', senderId);
+
+            if (profileError) throw profileError;
+
+            // 2. Mark notification as read
+            const { error: notifyError } = await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('id', notificationId);
+
+            if (notifyError) throw notifyError;
+            
+            // 3. Send a success notification back to the requester
+            await supabase.from('notifications').insert({
+                user_id: senderId,
+                title: 'Access Approved',
+                message: 'Your system access request has been approved for the next 4 hours.',
+                type: 'success',
+                link: '/dashboard'
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            toast.success('Access request approved');
         },
     });
 }

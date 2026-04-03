@@ -39,10 +39,11 @@ export function BreakTimeLock() {
       if (admins && admins.length > 0) {
         const notifications = admins.map(admin => ({
           user_id: admin.user_id,
+          sender_id: user.id,
           title: 'System Access Request',
           message: `${profile?.full_name || user.email} is requesting immediate system access. Reason: "${requestReason}"`,
           type: 'warning',
-          link: '/admin'
+          link: '/notifications'
         }));
 
         const { error: notifyErr } = await supabase

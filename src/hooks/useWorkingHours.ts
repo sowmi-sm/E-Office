@@ -128,7 +128,7 @@ export function useUpdateWorkingHours() {
 // Returns current break status and checks for late login (10 min grace period)
 export function useBreakTimeStatus() {
   const { data: config } = useWorkingHoursConfig();
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const blockUser = useBlockUser();
 
   const [isBreakTime, setIsBreakTime] = useState(false);
@@ -138,6 +138,18 @@ export function useBreakTimeStatus() {
   const [nextWorkStart, setNextWorkStart] = useState<string | null>(null);
 
   const checkStatus = useCallback(() => {
+    const now = new Date();
+
+    // Check if admin has granted temporary system access override
+    const unlockUntil = (profile as any)?.unlock_until;
+    if (unlockUntil && new Date(unlockUntil) > now) {
+      setIsBreakTime(false);
+      setIsNonWorkingDay(false);
+      setBreakEndTime(null);
+      setBreakLabel(null);
+      setNextWorkStart(null);
+      return;
+    }
     // Admins bypass non-working day and break restrictions
     // if (role === 'admin') {
     //   setIsBreakTime(false);
@@ -158,8 +170,7 @@ export function useBreakTimeStatus() {
     }
 
     if (!config || config.length === 0) return;
-
-    const now = new Date();
+    
     const currentDay = now.getDay();
     const currentTime = now.toTimeString().slice(0, 5); // HH:MM
 
@@ -216,7 +227,7 @@ export function useBreakTimeStatus() {
       setBreakEndTime(null);
       setBreakLabel(null);
     }
-  }, [config, role]);
+  }, [config, role, profile]);
 
   // Check late login
   useEffect(() => {

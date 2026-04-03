@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bell, CheckCircle, AlertTriangle, Info, Clock, Loader2, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
+import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead, useApproveAccessRequest } from '@/hooks/useNotifications';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
@@ -32,10 +32,12 @@ export default function Notifications() {
     if (!notification.is_read) {
       markRead.mutate(notification.id);
     }
-    if (notification.link) {
+    if (notification.link && !notification.sender_id) {
       navigate(notification.link);
     }
   };
+
+  const approveAccess = useApproveAccessRequest();
 
   return (
     <DashboardLayout>
@@ -88,11 +90,36 @@ export default function Notifications() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
+                        <div className="flex-1">
                           <p className={`font-medium ${!notification.is_read ? 'text-foreground' : 'text-muted-foreground'}`}>
                             {notification.title}
                           </p>
                           <p className="text-sm text-muted-foreground mt-1">{notification.message}</p>
+                          
+                          {/* Admin Approval Button for Access Requests */}
+                          {notification.title === 'System Access Request' && notification.sender_id && !notification.is_read && (
+                            <div className="mt-4 flex gap-3">
+                              <Button 
+                                size="sm" 
+                                className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  approveAccess.mutate({ 
+                                    senderId: notification.sender_id!, 
+                                    notificationId: notification.id 
+                                  });
+                                }}
+                                disabled={approveAccess.isPending}
+                              >
+                                {approveAccess.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="h-3 w-3" />
+                                )}
+                                Approve & Grant Access
+                              </Button>
+                            </div>
+                          )}
                         </div>
                         {!notification.is_read && (
                           <div className="w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0 mt-2" />
@@ -101,7 +128,7 @@ export default function Notifications() {
                       <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
                         <Clock className="h-3 w-3" />
                         <span>{formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}</span>
-                        {notification.link && (
+                        {notification.link && !notification.sender_id && (
                           <>
                             <span className="bullet text-muted-foreground/30">•</span>
                             <span className="text-primary font-medium">Click to view</span>
