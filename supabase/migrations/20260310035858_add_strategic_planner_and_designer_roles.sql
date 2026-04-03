@@ -1,0 +1,2 @@
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'strategic_planner';
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'designer';
