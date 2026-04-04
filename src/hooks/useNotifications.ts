@@ -130,17 +130,33 @@ export function useApproveAccessRequest() {
 
             if (notifyError) throw notifyError;
             
-            // 3. Send a success notification back to the requester
-            await supabase.from('notifications').insert({
+            // 3. ALSO deactivate any active blocks in user_blocks & tasks
+            await (supabase as any)
+                .from('user_blocks')
+                .update({ is_active: false, unblocked_at: new Date().toISOString(), unblocked_by: (supabase as any).auth?.user?.id })
+                .eq('user_id', senderId)
+                .eq('is_active', true);
+
+            await (supabase as any)
+                .from('tasks')
+                .update({ status: 'unblocked' })
+                .eq('title', '___USER_BLOCK_RECORD___')
+                .eq('assigned_to', senderId)
+                .eq('status', 'blocked');
+
+            // 4. Send a success notification back to the requester
+            await (supabase as any).from('notifications').insert({
                 user_id: senderId,
                 title: 'Access Approved',
-                message: 'Your system access request has been approved for the next 4 hours.',
+                message: 'Your system access request has been approved. Your account is now unlocked.',
                 type: 'success',
                 link: '/dashboard'
             });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            queryClient.invalidateQueries({ queryKey: ['user-block'] });
+            queryClient.invalidateQueries({ queryKey: ['admin-blocked-users'] });
             toast.success('Access request approved');
         },
     });
