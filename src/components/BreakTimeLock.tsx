@@ -29,7 +29,7 @@ export function BreakTimeLock() {
     setIsSubmitting(true);
     try {
       // Find all administrators to notify
-      const { data: admins, error: adminErr } = await supabase
+      const { data: admins, error: adminErr } = await (supabase as any)
         .from('user_roles')
         .select('user_id')
         .eq('role', 'admin');
@@ -37,16 +37,20 @@ export function BreakTimeLock() {
       if (adminErr) throw adminErr;
 
       if (admins && admins.length > 0) {
+        const isUnblockRequest = !!activeBlock;
+        const msgType = isUnblockRequest ? 'Account Unblock Request' : 'System Access Request';
+        const msgLink = isUnblockRequest ? '/productivity-monitoring' : '/productivity-monitoring';
+
         const notifications = admins.map(admin => ({
           user_id: admin.user_id,
           sender_id: user.id,
-          title: 'System Access Request',
-          message: `${profile?.full_name || user.email} is requesting immediate system access. Reason: "${requestReason}"`,
+          title: msgType,
+          message: `${profile?.full_name || user.email} is requesting ${isUnblockRequest ? 'an account unblock' : 'immediate system access'}. Reason: "${requestReason}"`,
           type: 'warning',
-          link: '/productivity-monitoring'
+          link: msgLink
         }));
 
-        const { error: notifyErr } = await supabase
+        const { error: notifyErr } = await (supabase as any)
           .from('notifications')
           .insert(notifications);
 
@@ -70,7 +74,7 @@ export function BreakTimeLock() {
   // Show block screen if user is blocked
   if (activeBlock) {
     return (
-      <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex items-center justify-center">
+      <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex items-center justify-center overflow-y-auto pt-10 pb-10">
         <div className="text-center max-w-md mx-auto p-8 space-y-6">
           <div className="mx-auto w-20 h-20 rounded-full bg-destructive/20 flex items-center justify-center">
             <ShieldAlert className="h-10 w-10 text-destructive" />
@@ -80,33 +84,83 @@ export function BreakTimeLock() {
             Your account has been blocked due to late login after break time.
             Please contact your administrator to unblock your account.
           </p>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground">Reason</p>
-            <p className="text-base font-medium text-destructive mt-1">{activeBlock.blocked_reason}</p>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground">Blocked at</p>
-            <p className="text-base font-medium text-foreground mt-1">
-              {new Date(activeBlock.blocked_at).toLocaleString('en-IN')}
-            </p>
+          
+          <div className="bg-card border border-border rounded-lg p-4 text-left">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Block Details</p>
+            <div className="mt-2 space-y-2">
+              <div className="flex justify-between items-start">
+                <span className="text-sm text-muted-foreground">Reason:</span>
+                <span className="text-sm font-bold text-destructive text-right ml-4">{activeBlock.blocked_reason}</span>
+              </div>
+              <div className="flex justify-between items-center border-t border-border pt-2 mt-2">
+                <span className="text-sm text-muted-foreground">Time:</span>
+                <span className="text-sm font-medium">{new Date(activeBlock.blocked_at).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
           </div>
 
-          {roleCategory === 'admin' && (
-            <div className="pt-4">
-              <p className="text-xs text-muted-foreground mb-3">Admin Override (Demo Mode)</p>
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 shadow-sm">
+            {!requestSent ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2 text-primary">
+                  <MessageSquare className="h-4 w-4" />
+                  <span className="text-sm font-bold uppercase tracking-tight">Request Account Unblock</span>
+                </div>
+                <Textarea
+                  placeholder="Explain why you were late to return from break..."
+                  className="bg-background border-primary/20 min-h-[100px] resize-none focus-visible:ring-primary/30"
+                  value={requestReason}
+                  onChange={(e) => setRequestReason(e.target.value)}
+                />
+                <Button 
+                  className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-all active:scale-[0.98] font-bold"
+                  onClick={handleRequestAccess}
+                  disabled={isSubmitting || !requestReason.trim()}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  Send Unblock Request
+                </Button>
+              </div>
+            ) : (
+              <div className="py-4 text-center space-y-3 animate-in fade-in zoom-in duration-300">
+                <div className="mx-auto w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <Send className="h-6 w-6 text-green-600 animate-pulse" />
+                </div>
+                <p className="text-sm font-bold text-green-700">Request Sent Successfully!</p>
+                <p className="text-xs text-muted-foreground">Please wait for an administrator to unblock your account.</p>
+                <Button variant="link" size="sm" onClick={() => setRequestSent(false)}>Send another message</Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3 pt-2">
+            {roleCategory === 'admin' && (
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full h-11 border-primary/30 hover:bg-primary/5 text-primary"
                 onClick={() => {
                   if (activeBlock?.user_id) unblockUser.mutate(activeBlock.user_id);
                 }}
                 disabled={unblockUser.isPending}
               >
                 <Unlock className="h-4 w-4 mr-2" />
-                Unblock My Account
+                Admin: Emergency Unblock
               </Button>
-            </div>
-          )}
+            )}
+            
+            <Button 
+              variant="ghost" 
+              className="text-muted-foreground hover:text-foreground h-11"
+              onClick={() => signOut()}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </div>
     );
