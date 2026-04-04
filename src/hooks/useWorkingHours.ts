@@ -175,32 +175,21 @@ export function useBreakTimeStatus() {
     const currentTime = now.toTimeString().slice(0, 5); // HH:MM
 
     const todayConfigs = config.filter(c => c.day_of_week === currentDay);
-    if (todayConfigs.length === 0) {
+    if (todayConfigs.length === 0 || !todayConfigs[0].is_working_day) {
       setIsNonWorkingDay(true);
-      return;
-    }
-
-    const firstConfig = todayConfigs[0];
-    
-    // Slice DB time fields to compare 'HH:MM' with bulletproof null fallbacks
-    const safeWorkStart = firstConfig?.work_start_time || '09:00:00';
-    const safeWorkEnd = firstConfig?.work_end_time || '18:00:00';
-    
-    const isAfterWork = currentTime >= safeWorkEnd.slice(0, 5);
-    const isBeforeWork = currentTime < safeWorkStart.slice(0, 5);
-
-    if (!firstConfig.is_working_day || isAfterWork || isBeforeWork) {
-      setIsNonWorkingDay(true);
-      setIsBreakTime(false);
       
-      if (firstConfig.is_working_day && isBeforeWork) {
+      const firstConfig = todayConfigs[0] || config[0];
+      const safeWorkStart = firstConfig?.work_start_time?.slice(0, 5) || '09:00';
+      const isBeforeWork = currentTime < safeWorkStart;
+      
+      if (firstConfig?.is_working_day && isBeforeWork) {
         setNextWorkStart(`Today ${formatToAMPM(safeWorkStart)}`);
       } else {
         for (let i = 1; i <= 7; i++) {
           const nextDay = (currentDay + i) % 7;
           const nextConfig = config.find(c => c.day_of_week === nextDay && c.is_working_day);
           if (nextConfig) {
-            setNextWorkStart(`${getDayName(nextDay)} ${formatToAMPM(nextConfig.work_start_time || '09:00:00')}`);
+            setNextWorkStart(`${getDayName(nextDay)} ${formatToAMPM(nextConfig.work_start_time?.slice(0, 5) || '09:00')}`);
             break;
           }
         }
@@ -209,11 +198,33 @@ export function useBreakTimeStatus() {
     }
 
     setIsNonWorkingDay(false);
+    
+    const firstConfig = todayConfigs[0];
+    const workStart = firstConfig.work_start_time.slice(0, 5);
+    const workEnd = firstConfig.work_end_time.slice(0, 5);
 
-    // Check all break periods for today
+    if (currentTime < workStart || currentTime >= workEnd) {
+      setIsNonWorkingDay(true);
+      if (currentTime < workStart) {
+        setNextWorkStart(`Today ${formatToAMPM(workStart)}`);
+      } else {
+        for (let i = 1; i <= 7; i++) {
+          const nextDay = (currentDay + i) % 7;
+          const nextConfig = config.find(c => c.day_of_week === nextDay && c.is_working_day);
+          if (nextConfig) {
+            setNextWorkStart(`${getDayName(nextDay)} ${formatToAMPM(nextConfig.work_start_time?.slice(0, 5) || '09:00')}`);
+            break;
+          }
+        }
+      }
+      return;
+    }
     let foundBreak = false;
     for (const dayConfig of todayConfigs) {
-      if (currentTime >= dayConfig.break_start_time && currentTime < dayConfig.break_end_time) {
+      const bStart = dayConfig.break_start_time.slice(0, 5);
+      const bEnd = dayConfig.break_end_time.slice(0, 5);
+      
+      if (currentTime >= bStart && currentTime < bEnd) {
         setIsBreakTime(true);
         setBreakEndTime(formatToAMPM(dayConfig.break_end_time));
         setBreakLabel(getBreakLabel(dayConfig.break_type));
