@@ -21,6 +21,19 @@ export function useCheckUserBlock() {
     queryFn: async () => {
       if (!user) return null;
 
+      // PRIORITY 0: Check if admin has granted a global system override in profiles
+      const { data: profile } = await (supabase as any)
+        .from('profiles')
+        .select('unlock_until')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profile?.unlock_until && new Date(profile.unlock_until) > new Date()) {
+          // Permanently clear any stuck local fallback blocks while we are here being unblocked by an admin
+          localStorage.removeItem(`local_user_block_${user.id}`);
+          return null;
+      }
+
       let activeBlock: UserBlock | null = null;
 
       const { data, error } = await supabase
