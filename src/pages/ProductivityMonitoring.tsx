@@ -2,6 +2,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useWorkingHoursConfig, getDayName, getBreakLabel, formatToAMPM } from '@/hooks/useWorkingHours';
 import { useBlockedUsers, useUnblockUser, useBlockUser } from '@/hooks/useUserBlock';
@@ -10,17 +11,24 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getRoleCategory } from '@/hooks/useRoleBasedData';
 import { useNotifications, useApproveAccessRequest, useMarkNotificationRead } from '@/hooks/useNotifications';
 import { useLoginLogs } from '@/hooks/useLoginLogs';
-import { Loader2, Clock, Coffee, ShieldAlert, ShieldCheck, Monitor, PlayCircle, AlertOctagon, CheckCircle, MessageSquare, AlertTriangle, Send } from 'lucide-react';
+import { Loader2, Clock, Coffee, ShieldAlert, ShieldCheck, Monitor, PlayCircle, AlertOctagon, CheckCircle, MessageSquare, AlertTriangle, Send, Download, FileText, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
+import { useState } from 'react';
 
 export default function ProductivityMonitoring() {
   const { role } = useAuth();
   const roleCategory = getRoleCategory(role);
+  
+  const [reportRange, setReportRange] = useState({
+    start: new Date().toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
+
   const { data: config, isLoading: configLoading } = useWorkingHoursConfig();
   const { data: blockedUsers, isLoading: blockedLoading, refetch: refetchBlocks } = useBlockedUsers();
   const { data: users, refetch: refetchUsers } = useUsers();
   const { data: notifications, refetch: refetchNotifies } = useNotifications();
-  const { data: loginLogs, refetch: refetchLogs } = useLoginLogs();
+  const { data: loginLogs, refetch: refetchLogs } = useLoginLogs(reportRange.start, reportRange.end);
   const approveAccess = useApproveAccessRequest();
   
   const unblockUser = useUnblockUser();
@@ -33,6 +41,50 @@ export default function ProductivityMonitoring() {
     refetchNotifies();
     refetchLogs();
     toast.success("Refreshing monitoring data...");
+  };
+
+  const handleExportCSV = () => {
+    if (!users || !loginLogs) return;
+
+    const headers = ["Date", "Employee Name", "Employee ID", "Shift Start", "Morning Tea Return", "Lunch Return", "Evening Tea Return"];
+    const rows = [];
+
+    // Get unique dates in the logs
+    const dates = [...new Set(loginLogs.map(l => l.event_date))].sort();
+
+    dates.forEach(date => {
+      users.forEach(u => {
+        const userLogs = loginLogs.filter(l => l.user_id === u.id && l.event_date === date);
+        if (userLogs.length === 0) return;
+
+        const getEvent = (type: string) => {
+          const log = userLogs.find(l => l.event_type === type);
+          return log ? new Date(log.logged_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Pending';
+        };
+
+        rows.push([
+          date,
+          u.full_name || u.email,
+          u.employee_id || 'N/A',
+          getEvent('shift_start'),
+          getEvent('morning_tea_return'),
+          getEvent('lunch_return'),
+          getEvent('evening_tea_return')
+        ]);
+      });
+    });
+
+    const csvContent = [headers, ...rows].map(r => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `E-Office_Attendance_${reportRange.start}_to_${reportRange.end}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Audit log exported successfully");
   };
 
   const accessRequests = notifications?.filter(n => (n.title === 'System Access Request' || n.title === 'Account Unblock Request') && !n.is_read) || [];
@@ -295,14 +347,44 @@ export default function ProductivityMonitoring() {
         {/* User Login Details */}
         {roleCategory === 'admin' && (
           <Card>
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="flex items-center gap-2">
-                <Monitor className="h-5 w-5 text-primary" />
-                Daily Login & Break Return Logs
-              </CardTitle>
-              <CardDescription>
-                Real-time overview of employee shift logins and their return times after specified breaks.
-              </CardDescription>
+            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b bg-muted/30 pb-6">
+              <div className="space-y-1">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Monitor className="h-5 w-5 text-primary" />
+                  Daily Login & Break Return Logs
+                </CardTitle>
+                <CardDescription>
+                  Monitor employee shift logins and returns across the organization.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 bg-background border rounded-md px-2 py-1 shadow-sm">
+                  <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Input 
+                    type="date" 
+                    className="h-7 border-none bg-transparent focus-visible:ring-0 w-[130px] text-xs p-0 px-1"
+                    value={reportRange.start}
+                    onChange={(e) => setReportRange(prev => ({ ...prev, start: e.target.value }))}
+                  />
+                  <span className="text-muted-foreground text-xs font-medium">to</span>
+                  <Input 
+                    type="date" 
+                    className="h-7 border-none bg-transparent focus-visible:ring-0 w-[130px] text-xs p-0 px-1"
+                    value={reportRange.end}
+                    onChange={(e) => setReportRange(prev => ({ ...prev, end: e.target.value }))}
+                  />
+                </div>
+                <Button 
+                  onClick={handleExportCSV} 
+                  variant="default" 
+                  size="sm" 
+                  className="flex items-center gap-2 shadow-md bg-green-600 hover:bg-green-700"
+                  disabled={!loginLogs || loginLogs.length === 0}
+                >
+                  <Download className="h-4 w-4" />
+                  Export CSV
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="rounded-md border overflow-hidden">

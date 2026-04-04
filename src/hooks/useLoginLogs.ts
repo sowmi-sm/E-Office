@@ -10,16 +10,18 @@ export interface LoginLog {
   event_date: string;
 }
 
-export function useLoginLogs(date?: string) {
-  const d = date || new Date().toISOString().split('T')[0];
+export function useLoginLogs(startDate?: string, endDate?: string) {
+  const s = startDate || new Date().toISOString().split('T')[0];
+  const e = endDate || s;
   
   return useQuery({
-    queryKey: ['login-logs', d],
+    queryKey: ['login-logs', s, e],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('daily_login_logs')
         .select('*')
-        .eq('event_date', d);
+        .gte('event_date', s)
+        .lte('event_date', e);
 
       if (error) throw error;
       return (data as unknown) as LoginLog[];
