@@ -27,7 +27,7 @@ export default function ProductivityMonitoring() {
   const blockUser = useBlockUser();
   const { user } = useAuth();
 
-  const accessRequests = notifications?.filter(n => n.title === 'System Access Request' && !n.is_read) || [];
+  const accessRequests = notifications?.filter(n => (n.title === 'System Access Request' || n.title === 'Account Unblock Request') && !n.is_read) || [];
 
   const getUserName = (userId: string) => {
     const user = users?.find(u => u.id === userId);
