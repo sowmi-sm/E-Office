@@ -43,7 +43,7 @@ export function BreakTimeLock() {
           title: 'System Access Request',
           message: `${profile?.full_name || user.email} is requesting immediate system access. Reason: "${requestReason}"`,
           type: 'warning',
-          link: '/notifications'
+          link: '/productivity-monitoring'
         }));
 
         const { error: notifyErr } = await supabase

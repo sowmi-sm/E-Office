@@ -8,7 +8,8 @@ import { useBlockedUsers, useUnblockUser } from '@/hooks/useUserBlock';
 import { useUsers } from '@/hooks/useAdminData';
 import { useAuth } from '@/contexts/AuthContext';
 import { getRoleCategory } from '@/hooks/useRoleBasedData';
-import { Loader2, Clock, Coffee, ShieldAlert, ShieldCheck, Monitor, PlayCircle, AlertOctagon } from 'lucide-react';
+import { useNotifications, useApproveAccessRequest, useMarkNotificationRead } from '@/hooks/useNotifications';
+import { Loader2, Clock, Coffee, ShieldAlert, ShieldCheck, Monitor, PlayCircle, AlertOctagon, CheckCircle, MessageSquare, AlertTriangle, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBlockUser } from '@/hooks/useUserBlock';
 
@@ -17,10 +18,15 @@ export default function ProductivityMonitoring() {
   const roleCategory = getRoleCategory(role);
   const { data: config, isLoading: configLoading } = useWorkingHoursConfig();
   const { data: blockedUsers, isLoading: blockedLoading } = useBlockedUsers();
-  const { data: users } = useUsers();
+  const { data: users, refetch: refetchUsers } = useUsers();
+  const { data: notifications } = useNotifications();
+  const approveAccess = useApproveAccessRequest();
+  
   const unblockUser = useUnblockUser();
   const blockUser = useBlockUser();
   const { user } = useAuth();
+
+  const accessRequests = notifications?.filter(n => n.title === 'System Access Request' && !n.is_read) || [];
 
   const getUserName = (userId: string) => {
     const user = users?.find(u => u.id === userId);
@@ -56,33 +62,79 @@ export default function ProductivityMonitoring() {
           </p>
         </div>
 
-        {/* Demo Actions */}
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <PlayCircle className="h-5 w-5 text-primary" />
-              Interactive Demo Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-4">
-            <Button
-              variant="default"
-              onClick={() => {
-                const isTesting = localStorage.getItem('test_break_lock') === 'true';
-                if (isTesting) {
-                  localStorage.removeItem('test_break_lock');
-                  toast.success('Break time simulation ended.');
-                } else {
-                  localStorage.setItem('test_break_lock', 'true');
-                  toast.success('Break time simulation started. The screen will lock momentarily.');
-                }
-              }}
-            >
-              <Monitor className="h-4 w-4 mr-2" />
-              Toggle Screen Lock (Break Time)
-            </Button>
-          </CardContent>
-        </Card>
+        {/* Access Requests (Admin only) */}
+        {roleCategory === 'admin' && (
+          <Card className={accessRequests.length > 0 ? 'border-primary shadow-md' : 'border-border'}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                System Access Requests
+                {accessRequests.length > 0 && (
+                  <Badge variant="destructive" className="ml-2 animate-pulse">
+                    {accessRequests.length} Pending
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Employees requesting temporary system overrides during non-working hours
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {accessRequests.length === 0 ? (
+                <div className="text-center py-6 border-2 border-dashed rounded-lg bg-muted/20">
+                  <ShieldCheck className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                  <p className="text-muted-foreground font-medium">No pending requests</p>
+                  <p className="text-xs text-muted-foreground">All access requests have been processed.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {accessRequests.map((request) => (
+                    <div key={request.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-xl border bg-primary/5 transition-colors hover:bg-primary/10">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-warning" />
+                          <p className="font-bold text-foreground">Urgent Work Request</p>
+                        </div>
+                        <p className="text-sm text-foreground/80 font-medium">
+                          {request.message}
+                        </p>
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>{new Date(request.created_at).toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white shadow-sm flex-shrink-0 gap-2 h-10 px-5"
+                        onClick={async () => {
+                          if (request.sender_id) {
+                            try {
+                              await approveAccess.mutateAsync({
+                                senderId: request.sender_id,
+                                notificationId: request.id
+                              });
+                              await refetchUsers();
+                            } catch (e: any) {
+                              toast.error(e.message || "Failed to approve access");
+                            }
+                          }
+                        }}
+                        disabled={approveAccess.isPending}
+                      >
+                        {approveAccess.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" />
+                        )}
+                        Approve & Unlock
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Break Schedule */}
         <Card>
