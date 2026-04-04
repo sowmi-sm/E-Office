@@ -94,13 +94,15 @@ export function useBlockUser() {
 
       if (existing) return; // Prevent duplicate active blocks
 
-      const { error } = await (supabase as any)
+      // Start by attempting a direct database insertion for global visibility
+      const { data, error } = await (supabase as any)
         .from('user_blocks')
-        .insert({ user_id: userId, blocked_reason: reason });
+        .insert({ user_id: userId, blocked_reason: reason })
+        .select();
 
-      // If the table doesn't exist, execute a strict cross-browser task blocking
       if (error) {
-        const { error: taskError } = await (supabase as any)
+        // Fallback 1: Tasks table if user_blocks is missing or RLS error
+        await (supabase as any)
           .from('tasks')
           .insert({
             title: '___USER_BLOCK_RECORD___',
@@ -111,10 +113,8 @@ export function useBlockUser() {
             priority: 'critical'
           });
 
-        if (taskError) {
-          // True absolute fallback to local session if insertion utterly fails
-          localStorage.setItem(`local_user_block_${userId}`, JSON.stringify({ reason, blocked_at: new Date().toISOString() }));
-        }
+        // Fallback 2: Local Session as absolute backup
+        localStorage.setItem(`local_user_block_${userId}`, JSON.stringify({ reason, blocked_at: new Date().toISOString() }));
       }
     },
     onSuccess: () => {
