@@ -113,11 +113,7 @@ export function BreakTimeLock() {
   }
 
   if (!isBreakTime && !isNonWorkingDay) {
-    return (
-      <div className="fixed top-20 right-4 z-[9999] bg-black/80 text-white text-xs p-2 rounded pointer-events-none font-mono">
-        Debug: t={new Date().toTimeString().slice(0, 5)} | r={role} | break={isBreakTime.toString()} | off={isNonWorkingDay.toString()} | end={breakEndTime} | cfg={activeBlock ? 'blk' : 'ok'}
-      </div>
-    );
+    return null;
   }
 
   return (
