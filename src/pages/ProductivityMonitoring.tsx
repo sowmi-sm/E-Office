@@ -17,15 +17,23 @@ export default function ProductivityMonitoring() {
   const { role } = useAuth();
   const roleCategory = getRoleCategory(role);
   const { data: config, isLoading: configLoading } = useWorkingHoursConfig();
-  const { data: blockedUsers, isLoading: blockedLoading } = useBlockedUsers();
+  const { data: blockedUsers, isLoading: blockedLoading, refetch: refetchBlocks } = useBlockedUsers();
   const { data: users, refetch: refetchUsers } = useUsers();
-  const { data: notifications } = useNotifications();
-  const { data: loginLogs } = useLoginLogs();
+  const { data: notifications, refetch: refetchNotifies } = useNotifications();
+  const { data: loginLogs, refetch: refetchLogs } = useLoginLogs();
   const approveAccess = useApproveAccessRequest();
   
   const unblockUser = useUnblockUser();
   const blockUser = useBlockUser();
   const { user } = useAuth();
+
+  const handleRefreshAll = () => {
+    refetchBlocks();
+    refetchUsers();
+    refetchNotifies();
+    refetchLogs();
+    toast.success("Refreshing monitoring data...");
+  };
 
   const accessRequests = notifications?.filter(n => (n.title === 'System Access Request' || n.title === 'Account Unblock Request') && !n.is_read) || [];
 
@@ -52,16 +60,28 @@ export default function ProductivityMonitoring() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 lg:p-8 space-y-6">
+      <div className="container mx-auto p-6 space-y-8 max-w-7xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-3">
-            <Monitor className="h-8 w-8 text-primary" />
-            Productivity Monitoring
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Screen lock schedule during break times and blocked user management
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">Productivity Monitoring</h1>
+          <p className="text-muted-foreground mt-1">Review active schedules, break time, and attendance records.</p>
         </div>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRefreshAll}
+            className="flex items-center gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+          >
+            <PlayCircle className="h-4 w-4" />
+            Refresh Monitoring
+          </Button>
+          <div className="hidden sm:flex items-center gap-2 rounded-full px-3 py-1 bg-primary/10 border border-primary/20 text-xs text-primary font-medium">
+            <Clock className="h-3 w-3" />
+            Live Sync: Active
+          </div>
+        </div>
+      </div>
 
         {/* Access Requests (Admin only) */}
         {roleCategory === 'admin' && (
