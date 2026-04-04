@@ -4,14 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useWorkingHoursConfig, getDayName, getBreakLabel, formatToAMPM } from '@/hooks/useWorkingHours';
-import { useBlockedUsers, useUnblockUser } from '@/hooks/useUserBlock';
+import { useBlockedUsers, useUnblockUser, useBlockUser } from '@/hooks/useUserBlock';
 import { useUsers } from '@/hooks/useAdminData';
 import { useAuth } from '@/contexts/AuthContext';
 import { getRoleCategory } from '@/hooks/useRoleBasedData';
 import { useNotifications, useApproveAccessRequest, useMarkNotificationRead } from '@/hooks/useNotifications';
+import { useLoginLogs } from '@/hooks/useLoginLogs';
 import { Loader2, Clock, Coffee, ShieldAlert, ShieldCheck, Monitor, PlayCircle, AlertOctagon, CheckCircle, MessageSquare, AlertTriangle, Send } from 'lucide-react';
 import { toast } from 'sonner';
-import { useBlockUser } from '@/hooks/useUserBlock';
 
 export default function ProductivityMonitoring() {
   const { role } = useAuth();
@@ -20,6 +20,7 @@ export default function ProductivityMonitoring() {
   const { data: blockedUsers, isLoading: blockedLoading } = useBlockedUsers();
   const { data: users, refetch: refetchUsers } = useUsers();
   const { data: notifications } = useNotifications();
+  const { data: loginLogs } = useLoginLogs();
   const approveAccess = useApproveAccessRequest();
   
   const unblockUser = useUnblockUser();
@@ -303,36 +304,20 @@ export default function ProductivityMonitoring() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      users.map((u, i) => {
-                        // Deterministic demo generation based on id length and index to keep it realistic but static
-                        const seed = u.id.charCodeAt(0) + i;
-                        const now = new Date();
-                        const currentHour = now.getHours();
-                        const currentMinute = now.getMinutes();
+                      users.map((u) => {
+                        const getEventLog = (type: string) => 
+                          loginLogs?.find(l => l.user_id === u.id && l.event_type === type);
 
-                        // Helper to check if it's past a specific HH:MM
-                        const isPast = (h: number, m: number) => {
-                          return currentHour > h || (currentHour === h && currentMinute >= m);
-                        };
+                        const shiftLog = getEventLog('shift_start');
+                        const morningLog = getEventLog('morning_tea_return');
+                        const lunchLog = getEventLog('lunch_return');
+                        const eveningLog = getEventLog('evening_tea_return');
 
-                        const hasStarted = seed % 10 !== 0; // 90% present
-                        const pad = (n: number) => n.toString().padStart(2, '0');
+                        const formatLog = (log: any) => 
+                          log ? new Date(log.logged_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Pending';
 
-                        // Shift start: 9:00 AM
-                        const shiftLogin = hasStarted ? `09:${pad(seed % 15 + 1)} AM` : 'Absent';
-
-                        // Morning return: ends at 11:00 AM
-                        const isMorningPast = isPast(11, 0);
-                        const morningReturn = hasStarted && isMorningPast ? (seed % 7 !== 0 ? `11:${pad(seed % 10)} AM` : 'Pending') : (hasStarted && !isMorningPast ? 'Pending' : '-');
-
-                        // Lunch return: ends at 2:00 PM (14:00)
-                        const isLunchPast = isPast(14, 0);
-                        const lunchReturn = hasStarted && isLunchPast ? (seed % 5 !== 0 ? `02:${pad(seed % 15)} PM` : 'Pending') : (hasStarted && !isLunchPast && isMorningPast && morningReturn !== 'Pending' ? 'Pending' : '-');
-
-                        // Evening return: ends at 4:30 PM (16:30)
-                        const isEveningPast = isPast(16, 30);
-                        const eveningReturn = hasStarted && isEveningPast ? (seed % 3 !== 0 ? `04:${pad(30 + (seed % 15))} PM` : 'Pending') : (hasStarted && !isEveningPast && isLunchPast && lunchReturn !== 'Pending' ? 'Pending' : '-');
-
+                        const isAbsent = !shiftLog;
+                        
                         return (
                           <TableRow key={u.id}>
                             <TableCell className="font-medium">
@@ -342,32 +327,26 @@ export default function ProductivityMonitoring() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              {shiftLogin === 'Absent' ? (
-                                <Badge variant="destructive" className="bg-destructive/20 text-destructive border-none">Absent</Badge>
+                              {isAbsent ? (
+                                <Badge variant="secondary" className="font-normal text-xs text-muted-foreground">Pending</Badge>
                               ) : (
                                 <div className="flex items-center gap-1.5 text-sm">
                                   <Clock className="w-3.5 h-3.5 text-green-600" />
-                                  {shiftLogin}
+                                  {formatLog(shiftLog)}
                                 </div>
                               )}
                             </TableCell>
                             <TableCell>
-                              {morningReturn === '-' ? <span className="text-muted-foreground">-</span> :
-                                morningReturn === 'Pending' ? <Badge variant="secondary" className="font-normal text-xs text-muted-foreground">Pending</Badge> :
-                                  <span className="text-sm">{morningReturn}</span>
-                              }
+                              {morningLog ? <span className="text-sm">{formatLog(morningLog)}</span> : 
+                                <Badge variant="secondary" className="font-normal text-xs text-muted-foreground">Pending</Badge>}
                             </TableCell>
                             <TableCell>
-                              {lunchReturn === '-' ? <span className="text-muted-foreground">-</span> :
-                                lunchReturn === 'Pending' ? <Badge variant="secondary" className="font-normal text-xs text-muted-foreground">Pending</Badge> :
-                                  <span className="text-sm">{lunchReturn}</span>
-                              }
+                              {lunchLog ? <span className="text-sm">{formatLog(lunchLog)}</span> : 
+                                <Badge variant="secondary" className="font-normal text-xs text-muted-foreground">Pending</Badge>}
                             </TableCell>
                             <TableCell>
-                              {eveningReturn === '-' ? <span className="text-muted-foreground">-</span> :
-                                eveningReturn === 'Pending' ? <Badge variant="secondary" className="font-normal text-xs text-muted-foreground">Pending</Badge> :
-                                  <span className="text-sm">{eveningReturn}</span>
-                              }
+                              {eveningLog ? <span className="text-sm">{formatLog(eveningLog)}</span> : 
+                                <Badge variant="secondary" className="font-normal text-xs text-muted-foreground">Pending</Badge>}
                             </TableCell>
                           </TableRow>
                         );

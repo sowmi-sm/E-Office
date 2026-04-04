@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useCallback } from 'react';
 import { useBlockUser } from './useUserBlock';
+import { useTrackLogin } from './useLoginLogs';
 
 export interface WorkingHoursConfig {
   id: string;
@@ -130,12 +131,32 @@ export function useBreakTimeStatus() {
   const { data: config } = useWorkingHoursConfig();
   const { user, role, profile } = useAuth();
   const blockUser = useBlockUser();
+  const trackLogin = useTrackLogin();
 
   const [isBreakTime, setIsBreakTime] = useState(false);
   const [isNonWorkingDay, setIsNonWorkingDay] = useState(false);
   const [breakEndTime, setBreakEndTime] = useState<string | null>(null);
   const [breakLabel, setBreakLabel] = useState<string | null>(null);
   const [nextWorkStart, setNextWorkStart] = useState<string | null>(null);
+
+  // Auto-log return events when user is back from break or starting shift
+  useEffect(() => {
+    if (!config || !user || isBreakTime || isNonWorkingDay) return;
+
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5);
+
+    // Determine event type based on time windows
+    // Logic: If we are not on break, we are either starting the day or returning from a specific break
+    let eventType: 'shift_start' | 'morning_tea_return' | 'lunch_return' | 'evening_tea_return' = 'shift_start';
+    
+    if (currentTime >= '10:45' && currentTime < '13:00') eventType = 'morning_tea_return';
+    else if (currentTime >= '14:00' && currentTime < '16:00') eventType = 'lunch_return';
+    else if (currentTime >= '16:15' && currentTime < '18:00') eventType = 'evening_tea_return';
+    else if (currentTime >= '18:00' || currentTime < '09:00') return;
+
+    trackLogin.mutate(eventType);
+  }, [isBreakTime, isNonWorkingDay, !!config, !!user]);
 
   const checkStatus = useCallback(() => {
     const now = new Date();
