@@ -39,7 +39,7 @@ export function BreakTimeLock() {
       if (admins && admins.length > 0) {
         const isUnblockRequest = !!activeBlock;
         const msgType = isUnblockRequest ? 'Account Unblock Request' : 'System Access Request';
-        const msgLink = isUnblockRequest ? '/productivity-monitoring' : '/productivity-monitoring';
+        const msgLink = '/productivity';
 
         const notifications = admins.map(admin => ({
           user_id: admin.user_id,

@@ -5,7 +5,10 @@ const SUPABASE_KEY = "sb_publishable_h0kwL-9rE1Lta7foLCoZsQ_oBIff-p3";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function checkData() {
-  const { data: config } = await supabase.from('working_hours_config').select('*').order('day_of_week').order('break_start_time');
-  console.log("CONFIG:", config);
+  const { data: roles, error: rolesError } = await (supabase as any).from('user_roles').select('*');
+  console.log("ROLES:", roles);
+
+  const { data: notifies, error: notifiesError } = await (supabase as any).from('notifications').select('*').limit(10).order('created_at', { ascending: false });
+  console.log("RECENT_NOTIFIES:", notifies);
 }
 checkData();
