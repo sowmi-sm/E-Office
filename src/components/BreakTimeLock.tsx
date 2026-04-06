@@ -37,12 +37,15 @@ export function BreakTimeLock() {
       if (adminErr) throw adminErr;
 
       if (admins && admins.length > 0) {
+        // Ensure each admin only gets ONE notification (fixes duplicate notification bug)
+        const uniqueAdminIds = [...new Set(admins.map(a => a.user_id))];
+        
         const isUnblockRequest = !!activeBlock;
         const msgType = isUnblockRequest ? 'Account Unblock Request' : 'System Access Request';
         const msgLink = '/productivity';
 
-        const notifications = admins.map(admin => ({
-          user_id: admin.user_id,
+        const notifications = uniqueAdminIds.map(adminId => ({
+          user_id: adminId,
           sender_id: user.id,
           title: msgType,
           message: `${profile?.full_name || user.email} is requesting ${isUnblockRequest ? 'an account unblock' : 'immediate system access'}. Reason: "${requestReason}"`,
