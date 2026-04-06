@@ -12,6 +12,17 @@ import { UserDetailDialog } from '@/components/dashboard/UserDetailDialog';
 import { TeamDialog } from '@/components/admin/TeamDialog';
 import { TeamDetailDialog } from '@/components/dashboard/TeamDetailDialog';
 import { useState } from 'react';
+import { downloadCSV } from '@/utils/exportUtils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Download, FileText, CheckCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function Team() {
   const { role } = useAuth();
@@ -27,6 +38,24 @@ export default function Team() {
   const { data: users, isLoading: usersLoading } = useUsers();
 
   const isLoading = teamsLoading || membersLoading || usersLoading;
+
+  const handleExportCSV = () => {
+    if (!users || users.length === 0) {
+      toast.error('No staff records to export');
+      return;
+    }
+
+    const headers = ['Full Name', 'Email', 'Employee ID', 'Role'];
+    const data = users.map(u => [
+      u.full_name || u.email?.split('@')[0] || 'Unknown',
+      u.email,
+      u.employee_id || 'N/A',
+      getRoleLabel((u.role as any) || '')
+    ]);
+
+    downloadCSV(data, headers, 'E-Office_Staff_Directory');
+    toast.success('Staff list exported successfully');
+  };
 
   // Get user info by ID
   const getUserInfo = (userId: string) => {
@@ -73,12 +102,31 @@ export default function Team() {
                 : 'Manage and monitor team performance'}
             </p>
           </div>
-          {roleCategory === 'admin' && (
+          {roleCategory !== 'staff' && (
             <div className="flex items-center gap-3">
-              <Button variant="accent" className="gap-2" onClick={handleAddTeam}>
-                <Plus className="h-4 w-4" />
-                Add Team
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2 shadow-sm">
+                    <Download className="h-4 w-4" />
+                    Export Data
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>Staff Directory</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleExportCSV} className="cursor-pointer gap-2 font-bold focus:bg-green-50">
+                     <CheckCircle className="h-4 w-4 text-green-500" />
+                     Download CSV (csc)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {roleCategory === 'admin' && (
+                <Button variant="accent" className="gap-2 shadow-md hover:scale-[1.02] transition-transform" onClick={handleAddTeam}>
+                  <Plus className="h-4 w-4" />
+                  Add Team
+                </Button>
+              )}
             </div>
           )}
         </div>

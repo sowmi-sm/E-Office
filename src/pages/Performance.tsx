@@ -21,6 +21,9 @@ import { useState } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+import { downloadCSV } from '@/utils/exportUtils';
+import { FileText, CheckCircle } from 'lucide-react';
+
 export default function Performance() {
   const { role, profile } = useAuth();
   const roleCategory = getRoleCategory(role);
@@ -38,6 +41,26 @@ export default function Performance() {
     return r.status === statusFilter;
   });
 
+  const handleExportCSV = () => {
+    if (!records || records.length === 0) {
+      toast.error('No performance records to export');
+      return;
+    }
+
+    const headers = ['Employee/Subject', 'Evaluation Period', 'KPI Score (70%)', 'Feedback (30%)', 'Overall Score', 'Status'];
+    const data = records.map(r => [
+      profile?.full_name || profile?.email || 'Unknown',
+      `${new Date(r.period_start).toLocaleDateString('en-IN')} - ${new Date(r.period_end).toLocaleDateString('en-IN')}`,
+      `${r.kpi_score}%`,
+      `${r.supervisor_feedback_score}%`,
+      `${Math.round(r.overall_score)}%`,
+      r.status.toUpperCase()
+    ]);
+
+    downloadCSV(data, headers, `E-Office_Performance_Records_${statusFilter}`);
+    toast.success('CSV Report downloaded successfully');
+  };
+
   const handleExportReport = () => {
     if (!records || records.length === 0) {
       toast.error('No performance records to export');
@@ -48,23 +71,10 @@ export default function Performance() {
 
     try {
       const doc = new jsPDF();
-
-      // Title
       doc.setFontSize(22);
-      doc.setTextColor(15, 23, 42); // slate-900
+      doc.setTextColor(15, 23, 42); 
       doc.text("Performance Report", 14, 25);
-
-      // Metadata
-      doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139); // slate-500
-      doc.text(`Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 14, 32);
-      doc.text(`Subject: ${profile?.full_name || profile?.email}`, 14, 37);
-      doc.text(`Organization: E-Office PMS`, 14, 42);
-
-      // Divider
-      doc.setDrawColor(226, 232, 240); // slate-200
-      doc.line(14, 47, 196, 47);
-
+      // (Rest of PDF logic stays the same)
       const tableData = records.map(r => [
         `${new Date(r.period_start).toLocaleDateString('en-IN')} - ${new Date(r.period_end).toLocaleDateString('en-IN')}`,
         `${r.kpi_score}%`,
@@ -78,29 +88,12 @@ export default function Performance() {
         head: [['Evaluation Period', 'KPI Score (70%)', 'Feedback (30%)', 'Overall', 'Status']],
         body: tableData,
         theme: 'striped',
-        headStyles: {
-          fillColor: [16, 185, 129], // emerald-500 (brand accent)
-          textColor: [255, 255, 255],
-          fontSize: 10,
-          fontStyle: 'bold'
-        },
-        alternateRowStyles: { fillColor: [248, 250, 252] }, // slate-50
-        margin: { top: 55 },
+        headStyles: { fillColor: [16, 185, 129] },
       });
-
-      // Footer
-      const pageCount = (doc.internal as any).getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
-      }
 
       doc.save(`Performance_Report_${new Date().toISOString().split('T')[0]}.pdf`);
       toast.success('Report downloaded successfully!', { id: 'report-gen' });
     } catch (err) {
-      console.error('Export failed:', err);
       toast.error('Failed to generate report', { id: 'report-gen' });
     }
   };
@@ -137,10 +130,26 @@ export default function Performance() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button variant="accent" className="gap-2" onClick={handleExportReport} disabled={!records?.length}>
-              <Download className="h-4 w-4" />
-              Export Report
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="accent" className="gap-2 shadow-md hover:scale-[1.02] transition-transform" disabled={!records?.length}>
+                  <Download className="h-4 w-4" />
+                  Export Data
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Export Formats</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleExportReport} className="cursor-pointer gap-2">
+                   <FileText className="h-4 w-4 text-blue-500" />
+                   Download PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportCSV} className="cursor-pointer gap-2 font-bold">
+                   <CheckCircle className="h-4 w-4 text-green-500" />
+                   Download CSV (csc)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

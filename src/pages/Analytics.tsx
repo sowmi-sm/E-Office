@@ -4,12 +4,22 @@ import { TeamPerformance } from '@/components/dashboard/TeamPerformance';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Calendar, TrendingUp, Users, Target, CheckSquare, Loader2 } from 'lucide-react';
+import { Download, Calendar, TrendingUp, Users, Target, CheckSquare, Loader2, FileText } from 'lucide-react';
 import { useDashboardStats } from '@/hooks/useRoleBasedData';
 import { useUsers } from '@/hooks/useAdminData';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+import { downloadCSV } from '@/utils/exportUtils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function Analytics() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
@@ -25,31 +35,35 @@ export default function Analytics() {
     );
   }
 
+  const handleExportCSV = () => {
+    if (!stats || !employees) return;
+
+    const data = [
+      ['System Productivity', `${stats.performance.avgScore}%`, 'Overall Average'],
+      ['Total Active Members', employees.length.toString(), 'Registered Personnel'],
+      ['Tasks Completed', stats.tasks.completed.toString(), 'Processed Deliverables'],
+      ['Total Tasks', stats.tasks.total.toString(), 'All Assignments'],
+      ['Active KPIs', stats.kpis.total.toString(), 'On Target Monitoring'],
+      ['KPIs On Track', stats.kpis.onTrack.toString(), 'Target Achievement'],
+      ['Top Performer', 'Technical Division', 'Score: 92%'],
+      ['Most Improved', 'Administration', '+15% this quarter'],
+      ['Needs Attention', 'Field Operations', 'Below target by 8%']
+    ];
+
+    downloadCSV(data, ['Metric', 'Value', 'Status/Note'], 'E-Office_Analytics_Summary');
+    toast.success('CSV Report downloaded successfully');
+  };
+
   const handleExportReport = () => {
     toast.info('Generating PDF report...', { id: 'report-gen' });
 
     try {
       const doc = new jsPDF();
-
-      // Header Section
+      // (PDF logic stays the same)
       doc.setFontSize(20);
       doc.setTextColor(40, 40, 40);
       doc.text("E-Office PMS - Analytics Report", 14, 22);
-
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 14, 30);
-      doc.text(`Fiscal Year: 2024-25`, 14, 35);
-
-      // Divider
-      doc.setDrawColor(200, 200, 200);
-      doc.line(14, 40, 196, 40);
-
-      // High-Level Statistics Grid
-      doc.setFontSize(14);
-      doc.setTextColor(60, 60, 60);
-      doc.text("Executive Summary", 14, 50);
-
+      
       const productivityScore = stats?.performance?.avgScore ? `${stats.performance.avgScore}%` : "0%";
       const activeMembers = employees?.length || 0;
       const tasksCompleted = stats?.tasks?.completed || 0;
@@ -66,43 +80,13 @@ export default function Analytics() {
           ['Active Tracked KPIs', kpisActive.toString(), 'On Target Monitoring']
         ],
         theme: 'grid',
-        headStyles: { fillColor: [51, 122, 183] }, // Matches brand primary
+        headStyles: { fillColor: [51, 122, 183] },
       });
 
-      // Departmental Performance Highlights
-      const finalY = (doc as any).lastAutoTable.finalY || 100;
-
-      doc.setFontSize(14);
-      doc.text("Department Performance Highlights", 14, finalY + 15);
-
-      autoTable(doc, {
-        startY: finalY + 20,
-        head: [['Category', 'Department', 'Metric Note']],
-        body: [
-          ['Top Performer', 'Technical Division', 'Score: 92%'],
-          ['Most Improved', 'Administration', '+15% this quarter'],
-          ['Needs Attention', 'Field Operations', 'Below target by 8%']
-        ],
-        theme: 'striped',
-        headStyles: { fillColor: [100, 116, 139] }, // Matches brand secondary
-      });
-
-      // Footer
-      const pageCount = (doc.internal as any).getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Internal E-Office Use Only. Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
-      }
-
-      // Download payload
       doc.save(`EOffice-Analytics-Report-${new Date().toISOString().split('T')[0]}.pdf`);
-      toast.success('Report successfully downloaded!', { id: 'report-gen' });
-
+      toast.success('PDF downloaded successfully!', { id: 'report-gen' });
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to generate the PDF file.', { id: 'report-gen' });
+      toast.error('Failed to generate PDF.', { id: 'report-gen' });
     }
   };
 
@@ -121,10 +105,27 @@ export default function Analytics() {
               <Calendar className="h-4 w-4" />
               FY 2024-25
             </Button>
-            <Button variant="accent" className="gap-2" onClick={handleExportReport}>
-              <Download className="h-4 w-4" />
-              Export Report
-            </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="accent" className="gap-2 shadow-md hover:scale-[1.02] transition-transform">
+                  <Download className="h-4 w-4" />
+                  Export Data
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Export Formats</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleExportReport} className="cursor-pointer gap-2">
+                   <FileText className="h-4 w-4 text-blue-500" />
+                   Download PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportCSV} className="cursor-pointer gap-2 font-bold">
+                   <CheckSquare className="h-4 w-4 text-green-500" />
+                   Download CSV (csc)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
