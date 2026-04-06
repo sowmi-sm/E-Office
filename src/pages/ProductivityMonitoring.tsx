@@ -87,7 +87,11 @@ export default function ProductivityMonitoring() {
     toast.success("Audit log exported successfully");
   };
 
-  const accessRequests = notifications?.filter(n => (n.title === 'System Access Request' || n.title === 'Account Unblock Request') && !n.is_read) || [];
+  const accessRequests = notifications?.filter(n => {
+    const isRequest = n.title === 'System Access Request' || n.title === 'Account Unblock Request';
+    const isToday = new Date(n.created_at).toDateString() === new Date().toDateString();
+    return isRequest && isToday && !n.is_read;
+  }) || [];
 
   const getUserName = (userId: string) => {
     const user = users?.find(u => u.id === userId);

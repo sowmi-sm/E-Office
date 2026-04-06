@@ -125,13 +125,19 @@ export function useApproveAccessRequest() {
 
             if (profileError) throw profileError;
 
-            // 2. Mark notification as read
-            const { error: notifyError } = await supabase
+            // 2. Mark ALL related access notifications from this sender as read
+            const { error: notifyError } = await (supabase as any)
                 .from('notifications')
                 .update({ is_read: true })
-                .eq('id', notificationId);
+                .eq('sender_id', senderId)
+                .in('title', ['System Access Request', 'Account Unblock Request']);
 
-            if (notifyError) throw notifyError;
+            if (notifyError) {
+                await (supabase as any)
+                    .from('notifications')
+                    .update({ is_read: true })
+                    .eq('id', notificationId);
+            }
             
             // 3. ALSO deactivate any active blocks in user_blocks & tasks
             await (supabase as any)
