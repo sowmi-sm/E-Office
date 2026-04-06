@@ -115,9 +115,12 @@ export function useApproveAccessRequest() {
             const unlockUntil = new Date();
             unlockUntil.setHours(unlockUntil.getHours() + 4);
             
-            const { error: profileError } = await supabase
+            const { error: profileError } = await (supabase as any)
                 .from('profiles')
-                .update({ unlock_until: unlockUntil.toISOString() } as any)
+                .update({ 
+                    unlock_until: unlockUntil.toISOString(),
+                    unlock_issued_at: new Date().toISOString()
+                } as any)
                 .eq('id', senderId);
 
             if (profileError) throw profileError;

@@ -56,16 +56,16 @@ export function useCheckUserBlock() {
       // 2. Check if admin has granted a global system override in profiles
       const { data: profile } = await (supabase as any)
         .from('profiles')
-        .select('unlock_until')
+        .select('unlock_until, unlock_issued_at')
         .eq('id', user.id)
         .maybeSingle();
 
       const hasOverride = profile?.unlock_until && new Date(profile.unlock_until) > new Date();
 
       if (hasOverride) {
-        // If we have an override AND an active block, only let them in if the override is NEWER than the block
+        // If we have an override AND an active block, only let them in if the override was ISSUED AFTER the block
         // (This means the admin clicked "Unblock" for THIS specific late-login event)
-        if (!activeBlock || new Date(profile.unlock_until) > new Date(activeBlock.blocked_at)) {
+        if (!activeBlock || (profile.unlock_issued_at && new Date(profile.unlock_issued_at) > new Date(activeBlock.blocked_at))) {
           localStorage.removeItem(`local_user_block_${user.id}`);
           return null;
         }
