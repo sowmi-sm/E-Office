@@ -128,7 +128,8 @@ export function useApproveAccessRequest() {
 
             if (profileError) throw profileError;
 
-            // 2. Mark ALL related access notifications from this sender as read
+            // 2. Mark ALL related access notifications from this sender as read FOR ALL ADMINS
+            // (This prevents other admins from seeing a request that was already handled)
             const { error: notifyError } = await (supabase as any)
                 .from('notifications')
                 .update({ is_read: true })
