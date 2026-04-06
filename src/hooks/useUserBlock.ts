@@ -20,29 +20,15 @@ export function useCheckUserBlock() {
     queryKey: ['user-block', user?.id],
     queryFn: async () => {
       if (!user) return null;
-
-      // PRIORITY 0: Check if admin has granted a global system override in profiles
-      const { data: profile } = await (supabase as any)
-        .from('profiles')
-        .select('unlock_until')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (profile?.unlock_until && new Date(profile.unlock_until) > new Date()) {
-          // Permanently clear any stuck local fallback blocks while we are here being unblocked by an admin
-          localStorage.removeItem(`local_user_block_${user.id}`);
-          return null;
-      }
-
       let activeBlock: UserBlock | null = null;
 
-      const { data, error } = await supabase
+      // 1. Fetch any active block first
+      const { data: rpcData, error: rpcError } = await supabase
         .rpc('get_user_block' as never, { _user_id: user.id } as never) as unknown as { data: UserBlock | null; error: any };
 
-      if (!error && data && data.is_active) {
-        activeBlock = data;
+      if (!rpcError && rpcData && rpcData.is_active) {
+        activeBlock = rpcData;
       } else {
-        // Fallback: direct query
         const { data: rawData } = await (supabase as any)
           .from('user_blocks')
           .select('*')
@@ -53,7 +39,6 @@ export function useCheckUserBlock() {
         if (rawData) {
           activeBlock = rawData as UserBlock;
         } else {
-          // Provide a cross-browser fallback using 'tasks' table
           const { data: taskData } = await (supabase as any)
             .from('tasks')
             .select('*')
@@ -64,14 +49,34 @@ export function useCheckUserBlock() {
 
           if (taskData) {
             activeBlock = { id: taskData.id, user_id: taskData.assigned_to, is_active: true, blocked_reason: taskData.description || 'Blocked by system', blocked_at: taskData.created_at, created_at: taskData.created_at, unblocked_at: null, unblocked_by: null };
-          } else {
-            // Absolute fallback: LocalStorage
-            const localBlock = localStorage.getItem(`local_user_block_${user.id}`);
-            if (localBlock) {
-              const parsed = JSON.parse(localBlock);
-              activeBlock = { id: 'local-block', user_id: user.id, is_active: true, blocked_reason: parsed.reason, blocked_at: parsed.blocked_at, created_at: parsed.blocked_at, unblocked_at: null, unblocked_by: null };
-            }
           }
+        }
+      }
+
+      // 2. Check if admin has granted a global system override in profiles
+      const { data: profile } = await (supabase as any)
+        .from('profiles')
+        .select('unlock_until')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const hasOverride = profile?.unlock_until && new Date(profile.unlock_until) > new Date();
+
+      if (hasOverride) {
+        // If we have an override AND an active block, only let them in if the override is NEWER than the block
+        // (This means the admin clicked "Unblock" for THIS specific late-login event)
+        if (!activeBlock || new Date(profile.unlock_until) > new Date(activeBlock.blocked_at)) {
+          localStorage.removeItem(`local_user_block_${user.id}`);
+          return null;
+        }
+      }
+      
+      // 3. Fallback to local storage if still no block found in DB
+      if (!activeBlock) {
+        const localBlock = localStorage.getItem(`local_user_block_${user.id}`);
+        if (localBlock) {
+          const parsed = JSON.parse(localBlock);
+          activeBlock = { id: 'local-block', user_id: user.id, is_active: true, blocked_reason: parsed.reason, blocked_at: parsed.blocked_at, created_at: parsed.blocked_at, unblocked_at: null, unblocked_by: null };
         }
       }
 
