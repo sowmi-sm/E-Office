@@ -15,7 +15,23 @@ async function checkProfiles() {
 
   profiles?.forEach(p => {
     const userRole = roles?.find(r => r.user_id === p.id);
-    console.log(`USER: ${p.full_name} | EMAIL: ${p.email} | ROLE: ${userRole?.role || 'NONE'}`);
+    if (p.email?.includes('sowmiya')) {
+       console.log(`FOUND_SOWMIYA: ${p.id} | ${p.email} | ROLE: ${userRole?.role}`);
+    }
   });
+
+  console.log('--- ALL ADMINS ---');
+  for (const p of profiles || []) {
+    if (p.full_name?.toLowerCase().includes('sowmiya') || p.email?.toLowerCase().includes('sowmiya')) {
+       console.log(`CHECKING_SOWMIYA: ${p.id} | ${p.email}`);
+       const { data: existing } = await supabase.from('user_roles').select('*').eq('user_id', p.id).eq('role', 'admin').maybeSingle();
+       if (!existing) {
+         console.log(`ADDING_ADMIN_ROLE_FOR: ${p.id}`);
+         await supabase.from('user_roles').insert({ user_id: p.id, role: 'admin' });
+       } else {
+         console.log(`SOWMIYA_ALREADY_ADMIN: ${p.id}`);
+       }
+    }
+  }
 }
 checkProfiles();
