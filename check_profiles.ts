@@ -13,25 +13,10 @@ async function checkProfiles() {
     return;
   }
 
-  profiles?.forEach(p => {
-    const userRole = roles?.find(r => r.user_id === p.id);
-    if (p.email?.includes('sowmiya')) {
-       console.log(`FOUND_SOWMIYA: ${p.id} | ${p.email} | ROLE: ${userRole?.role}`);
-    }
+  console.log('--- GLOBAL PERMISSION AUDIT ---');
+  roles?.forEach(r => {
+    const p = profiles?.find(pr => pr.id === r.user_id);
+    console.log(`UID: ${r.user_id} | ROLE: ${r.role} | NAME: ${p?.full_name || '!!! GHOST PROFILE !!!'} | EMAIL: ${p?.email || 'N/A'}`);
   });
-
-  console.log('--- ALL ADMINS ---');
-  for (const p of profiles || []) {
-    if (p.full_name?.toLowerCase().includes('sowmiya') || p.email?.toLowerCase().includes('sowmiya')) {
-       console.log(`CHECKING_SOWMIYA: ${p.id} | ${p.email}`);
-       const { data: existing } = await supabase.from('user_roles').select('*').eq('user_id', p.id).eq('role', 'admin').maybeSingle();
-       if (!existing) {
-         console.log(`ADDING_ADMIN_ROLE_FOR: ${p.id}`);
-         await supabase.from('user_roles').insert({ user_id: p.id, role: 'admin' });
-       } else {
-         console.log(`SOWMIYA_ALREADY_ADMIN: ${p.id}`);
-       }
-    }
-  }
 }
 checkProfiles();
