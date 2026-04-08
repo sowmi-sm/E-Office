@@ -463,12 +463,17 @@ export function useUserKPIs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('user_kpis')
-        .select('*, profiles(full_name, email)')
+        .select('*, profiles!user_id(full_name, email)')
         .order('period_start', { ascending: false });
 
       if (error) {
-        console.error('Error fetching User KPIs:', error);
-        throw error;
+        console.error('Core KPI Fetch Error:', error);
+        // Fallback to simple select if join fails to prevent empty page
+        const { data: simpleData } = await supabase
+          .from('user_kpis')
+          .select('*')
+          .order('period_start', { ascending: false });
+        return (simpleData || []) as any[];
       }
       return (data || []) as any[];
     },
