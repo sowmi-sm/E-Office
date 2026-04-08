@@ -463,18 +463,14 @@ export function useUserKPIs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('user_kpis')
-        .select(`
-          *,
-          profiles:user_id (
-            full_name,
-            email
-          )
-        `)
+        .select('*')
         .order('period_start', { ascending: false });
 
-      if (!error && data && data.length > 0) return data as any[];
-
-      return [] as UserKPI[];
+      if (error) {
+        console.error('Error fetching User KPIs:', error);
+        throw error;
+      }
+      return (data || []) as any[];
     },
     enabled: !!user,
   });
