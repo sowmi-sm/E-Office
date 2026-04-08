@@ -463,7 +463,7 @@ export function useUserKPIs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('user_kpis')
-        .select('*')
+        .select('*, profiles(full_name, email)')
         .order('period_start', { ascending: false });
 
       if (error) {
