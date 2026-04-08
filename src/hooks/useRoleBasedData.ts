@@ -461,21 +461,36 @@ export function useUserKPIs() {
   return useQuery({
     queryKey: ['user-kpis', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // 1. Fetch KPIs first (robust)
+      const { data: kpiData, error: kpiError } = await supabase
         .from('user_kpis')
-        .select('*, profiles!user_id(full_name, email)')
+        .select('*')
         .order('period_start', { ascending: false });
 
-      if (error) {
-        console.error('Core KPI Fetch Error:', error);
-        // Fallback to simple select if join fails to prevent empty page
-        const { data: simpleData } = await supabase
-          .from('user_kpis')
-          .select('*')
-          .order('period_start', { ascending: false });
-        return (simpleData || []) as any[];
+      if (kpiError) {
+        console.error('KPI Fetch Error:', kpiError);
+        throw kpiError;
       }
-      return (data || []) as any[];
+
+      if (!kpiData || kpiData.length === 0) return [];
+
+      // 2. Fetch Profiles for all users in one go (more robust than joins)
+      const userIds = [...new Set(kpiData.map(k => k.user_id))];
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      // 3. Merge them locally
+      const profileMap = (profileData || []).reduce((acc: any, p) => {
+        acc[p.id] = p;
+        return acc;
+      }, {});
+
+      return kpiData.map(k => ({
+        ...k,
+        profiles: profileMap[k.user_id] || null
+      })) as any[];
     },
     enabled: !!user,
   });
