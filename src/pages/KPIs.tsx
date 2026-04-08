@@ -20,8 +20,9 @@ export default function KPIs() {
   const { data: myKPIs, isLoading: myKPIsLoading } = useMyKPIs();
   const { data: templates } = useKPITemplates();
   
-  const isLoading = roleCategory === 'staff' ? myKPIsLoading : allKPIsLoading;
-  const kpis = roleCategory === 'staff' ? myKPIs : allKPIs;
+  const isAdmin = role === 'admin';
+  const isLoading = isAdmin ? allKPIsLoading : myKPIsLoading;
+  const kpis = isAdmin ? allKPIs : myKPIs;
 
   const getTemplateName = (templateId: string | null) => {
     if (!templateId) return 'Custom KPI';
@@ -35,12 +36,12 @@ export default function KPIs() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
-              {roleCategory === 'staff' ? 'My KPIs' : 'All KPIs'}
+              {isAdmin ? 'All KPIs' : 'My KPIs'}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {roleCategory === 'staff' 
-                ? `Track your key performance indicators as ${role ? getRoleLabel(role) : 'User'}`
-                : 'Monitor all team and organizational KPIs'}
+              {isAdmin 
+                ? 'Monitor all team and organizational KPIs'
+                : `Track your key performance indicators as ${role ? getRoleLabel(role) : 'User'}`}
             </p>
           </div>
           <div className="flex items-center gap-3">

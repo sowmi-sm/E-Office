@@ -579,9 +579,9 @@ export function useDashboardStats() {
         .select('id, status, progress');
 
       // Get KPIs
-      const kpisQuery = role !== 'admin'
-        ? supabase.from('user_kpis').select('id, status, current_value, target_value').eq('user_id', user!.id)
-        : supabase.from('user_kpis').select('id, status, current_value, target_value');
+      const kpisQuery = role === 'admin'
+        ? supabase.from('user_kpis').select('id, status, current_value, target_value')
+        : supabase.from('user_kpis').select('id, status, current_value, target_value').eq('user_id', user!.id);
 
       const { data: kpis } = await kpisQuery;
 
