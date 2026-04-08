@@ -19,6 +19,17 @@ export function BreakTimeLock() {
   const [requestReason, setRequestReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [previousIsBreak, setPreviousIsBreak] = useState(false);
+
+  // Auto-logout when break ends to force re-login as requested
+  useEffect(() => {
+    // If we were on break, and now we are NOT on break, and it's not a non-working day
+    if (previousIsBreak && !isBreakTime && !isNonWorkingDay && role !== 'admin') {
+      toast.info("Break ended. Please log in to resume your tasks.");
+      signOut();
+    }
+    setPreviousIsBreak(isBreakTime);
+  }, [isBreakTime, isNonWorkingDay, role, previousIsBreak, signOut]);
 
   const handleRequestAccess = async () => {
     if (!requestReason.trim() || !user) {
