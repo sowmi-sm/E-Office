@@ -13,7 +13,7 @@ import { useNotifications, useApproveAccessRequest, useMarkNotificationRead } fr
 import { useLoginLogs } from '@/hooks/useLoginLogs';
 import { Loader2, Clock, Coffee, ShieldAlert, ShieldCheck, Monitor, PlayCircle, AlertOctagon, CheckCircle, MessageSquare, AlertTriangle, Send, Download, FileText, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function ProductivityMonitoring() {
   const { role } = useAuth();
@@ -33,7 +33,30 @@ export default function ProductivityMonitoring() {
   
   const unblockUser = useUnblockUser();
   const blockUser = useBlockUser();
-  const { user } = useAuth();
+  const { user, supabase } = useAuth();
+  
+  // Real-time synchronization for attendance logs
+  useEffect(() => {
+    if (!supabase) return;
+    
+    // Subscribe to all new login log entries
+    const channel = supabase
+      .channel('attendance_live_sync')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'daily_login_logs' },
+        () => {
+          // Immediately update the table
+          refetchLogs();
+          refetchUsers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, refetchLogs, refetchUsers]);
 
   const handleRefreshAll = () => {
     refetchBlocks();
