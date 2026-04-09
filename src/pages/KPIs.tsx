@@ -91,6 +91,7 @@ export default function KPIs() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {(displayKPIs as any[])?.map((group: any, index: number) => {
               const name = isAdmin ? group.templateName : getTemplateName(group.kpi_template_id);
+              const [isExpanded, setIsExpanded] = useState(false);
               
               const statusColors = {
                 on_track: 'default',
@@ -99,13 +100,21 @@ export default function KPIs() {
                 behind: 'destructive',
               } as const;
 
+              // Calculate overall group progress for admin summary
+              const totalTarget = group.individualCompletions?.reduce((sum: number, ind: any) => sum + ind.target, 0) || 1;
+              const totalCurrent = group.individualCompletions?.reduce((sum: number, ind: any) => sum + ind.current, 0) || 0;
+              const overallProgress = Math.round((totalCurrent / totalTarget) * 100);
+
               return (
                 <Card 
                   key={isAdmin ? group.kpi_template_id : group.id} 
-                  className="animate-slide-up hover:shadow-sm transition-shadow border-l-4 border-l-primary" 
+                  className="animate-slide-up hover:shadow-md transition-all duration-300 border-l-4 border-l-primary overflow-hidden" 
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <CardHeader className="pb-3 bg-muted/30">
+                  <CardHeader 
+                    className="pb-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => isAdmin ? setIsExpanded(!isExpanded) : setSelectedKPI(group)}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-primary/10 rounded-lg">
@@ -114,44 +123,101 @@ export default function KPIs() {
                         <div>
                           <CardTitle className="text-lg">{name}</CardTitle>
                           {isAdmin && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Assigned to {group.individualCompletions.length} staff members
+                            <p className="text-xs text-muted-foreground mt-0.5 font-medium flex items-center gap-1.5">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                              Monitoring {group.individualCompletions.length} staff members
                             </p>
                           )}
                         </div>
                       </div>
-                      {!isAdmin && (
-                        <Badge variant={statusColors[group.status as keyof typeof statusColors] || 'outline'}>
-                          {group.status.replace('_', ' ')}
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {!isAdmin ? (
+                          <Badge variant={statusColors[group.status as keyof typeof statusColors] || 'outline'}>
+                            {group.status.replace('_', ' ')}
+                          </Badge>
+                        ) : (
+                          <div className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            {overallProgress}% Total
+                          </div>
+                        )}
+                        {isAdmin && (
+                          <div className={`p-1 rounded-full bg-background border transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                            <Filter className="h-3 w-3 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-6 space-y-6">
                     {isAdmin ? (
-                      <div className="space-y-4">
-                        {group.individualCompletions.map((ind: any) => (
-                          <div key={ind.id} className="space-y-2 p-3 rounded-lg border border-border bg-card/50">
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">
-                                  {ind.name.split(' ').map((n:any)=>n[0]).join('')}
-                                </div>
-                                <span className="font-medium">{ind.name}</span>
-                              </div>
-                              <Badge variant="outline" className="text-[10px] scale-90">
-                                {ind.status.replace('_', ' ')}
-                              </Badge>
+                      <div className="space-y-6">
+                        {/* Summary Front Details */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground font-medium">Organizational Progress</span>
+                            <span className="font-bold text-primary">{totalCurrent} / {totalTarget} target achieved</span>
+                          </div>
+                          <Progress value={Math.min(overallProgress, 100)} className="h-2 rounded-full shadow-inner" />
+                          <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                            <div className="bg-muted/50 p-2 rounded-lg">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Staff</p>
+                              <p className="text-sm font-bold">{group.individualCompletions.length}</p>
                             </div>
-                            <div className="space-y-1">
-                              <div className="flex justify-between text-[11px] text-muted-foreground">
-                                <span>Progress</span>
-                                <span>{ind.current} / {ind.target} ({ind.progress}%)</span>
-                              </div>
-                              <Progress value={Math.min(ind.progress, 100)} className="h-1.5" />
+                            <div className="bg-muted/50 p-2 rounded-lg">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Cycle</p>
+                              <p className="text-sm font-bold">April '26</p>
+                            </div>
+                            <div className="bg-muted/50 p-2 rounded-lg">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Active</p>
+                              <p className="text-sm font-bold text-green-600">Yes</p>
                             </div>
                           </div>
-                        ))}
+                        </div>
+
+                        {/* Collapsible Individual Details */}
+                        {isExpanded && (
+                          <div className="space-y-4 pt-4 border-t border-dashed border-border animate-in fade-in slide-in-from-top-2 duration-300">
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest pl-1">Individual Staff Breakdown</p>
+                            <div className="grid gap-3">
+                              {group.individualCompletions.map((ind: any) => (
+                                <div key={ind.id} className="group space-y-2 p-3 rounded-lg border border-border bg-card/50 hover:border-primary/30 hover:bg-primary/5 transition-all">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary group-hover:scale-110 transition-transform">
+                                        {ind.name.split(' ').map((n:any)=>n[0]).join('')}
+                                      </div>
+                                      <div>
+                                        <p className="font-bold text-foreground leading-none">{ind.name}</p>
+                                        <p className="text-[10px] text-muted-foreground mt-1">Last activity: Just now</p>
+                                      </div>
+                                    </div>
+                                    <Badge variant="outline" className={`text-[10px] font-bold ${ind.status === 'behind' ? 'text-destructive border-destructive/20 bg-destructive/5' : ''}`}>
+                                      {ind.status.replace('_', ' ')}
+                                    </Badge>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <div className="flex justify-between text-[11px] text-muted-foreground">
+                                      <span className="font-medium">Performance Score</span>
+                                      <span className="font-bold">{ind.current} / {ind.target} ({ind.progress}%)</span>
+                                    </div>
+                                    <Progress value={Math.min(ind.progress, 100)} className="h-1.5" />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {!isExpanded && (
+                          <Button 
+                            variant="ghost" 
+                            className="w-full text-xs text-primary h-9 gap-2 hover:bg-primary/5 border border-dashed border-primary/20"
+                            onClick={() => setIsExpanded(true)}
+                          >
+                            <Filter className="h-3 w-3" />
+                            Click card to view individual staff details
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <div className="space-y-4">
@@ -176,16 +242,16 @@ export default function KPIs() {
                     )}
                     
                     <div className="pt-4 border-t border-border flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">
-                        Cycle: {new Date(group.period_start).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                        Period: {new Date(group.period_start).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
                       </p>
                       <Button 
-                        variant="ghost" 
+                        variant="link" 
                         size="sm" 
-                        className="text-xs h-8 text-primary hover:text-primary hover:bg-primary/5"
+                        className="text-xs h-8 text-primary font-bold p-0"
                         onClick={() => { setSelectedKPI(isAdmin ? group.individualCompletions[0] : group); setSelectedTemplateName(name); }}
                       >
-                        View Details
+                        Detailed Analytics
                       </Button>
                     </div>
                   </CardContent>
