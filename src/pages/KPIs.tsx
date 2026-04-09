@@ -20,7 +20,10 @@ interface KPICardProps {
 
 function KPICard({ group, isAdmin, getTemplateName, onSelect, index }: KPICardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const name = isAdmin ? group.templateName : getTemplateName(group.kpi_template_id);
+  
+  if (!group) return null;
+
+  const name = isAdmin ? (group.templateName || 'KPI Metric') : getTemplateName(group.kpi_template_id);
 
   const statusColors = {
     on_track: 'default',
@@ -29,10 +32,21 @@ function KPICard({ group, isAdmin, getTemplateName, onSelect, index }: KPICardPr
     behind: 'destructive',
   } as const;
 
-  // Calculate overall group progress for admin summary
-  const totalTarget = group.individualCompletions?.reduce((sum: number, ind: any) => sum + ind.target, 0) || 1;
-  const totalCurrent = group.individualCompletions?.reduce((sum: number, ind: any) => sum + ind.current, 0) || 0;
-  const overallProgress = Math.round((totalCurrent / totalTarget) * 100);
+  // Calculate overall group progress for admin summary with safety
+  const completions = group.individualCompletions || [];
+  const totalTarget = completions.reduce((sum: number, ind: any) => sum + (Number(ind.target) || 0), 0) || 1;
+  const totalCurrent = completions.reduce((sum: number, ind: any) => sum + (Number(ind.current) || 0), 0);
+  const overallProgress = Math.min(Math.round((totalCurrent / totalTarget) * 100), 100);
+
+  // Safely format date
+  const formatDate = (dateStr: string | null) => {
+    try {
+      if (!dateStr) return "Current Cycle";
+      return new Date(dateStr).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    } catch (e) {
+      return "Current Cycle";
+    }
+  };
 
   return (
     <Card 
@@ -53,7 +67,7 @@ function KPICard({ group, isAdmin, getTemplateName, onSelect, index }: KPICardPr
               {isAdmin && (
                 <p className="text-xs text-muted-foreground mt-0.5 font-medium flex items-center gap-1.5">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  Monitoring {group.individualCompletions.length} staff members
+                  Monitoring {completions.length} staff members
                 </p>
               )}
             </div>
@@ -61,11 +75,11 @@ function KPICard({ group, isAdmin, getTemplateName, onSelect, index }: KPICardPr
           <div className="flex items-center gap-2">
             {!isAdmin ? (
               <Badge variant={statusColors[group.status as keyof typeof statusColors] || 'outline'}>
-                {group.status.replace('_', ' ')}
+                {(group.status || 'Active').replace('_', ' ')}
               </Badge>
             ) : (
               <div className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
-                {overallProgress}% Total
+                {overallProgress || 0}% Total
               </div>
             )}
             {isAdmin && (
@@ -82,13 +96,13 @@ function KPICard({ group, isAdmin, getTemplateName, onSelect, index }: KPICardPr
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Organizational Progress</span>
-                <span className="font-bold text-primary">{totalCurrent} / {totalTarget} target achieved</span>
+                <span className="font-bold text-primary">{totalCurrent} / {totalTarget === 1 && totalCurrent === 0 ? 0 : totalTarget} achieved</span>
               </div>
-              <Progress value={Math.min(overallProgress, 100)} className="h-2 rounded-full shadow-inner" />
+              <Progress value={overallProgress || 0} className="h-2 rounded-full shadow-inner" />
               <div className="grid grid-cols-3 gap-2 pt-1 text-center">
                 <div className="bg-muted/50 p-2 rounded-lg">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Staff</p>
-                  <p className="text-sm font-bold">{group.individualCompletions.length}</p>
+                  <p className="text-sm font-bold">{completions.length}</p>
                 </div>
                 <div className="bg-muted/50 p-2 rounded-lg">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Cycle</p>
@@ -105,43 +119,46 @@ function KPICard({ group, isAdmin, getTemplateName, onSelect, index }: KPICardPr
               <div className="space-y-4 pt-4 border-t border-dashed border-border animate-in fade-in slide-in-from-top-2 duration-300">
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest pl-1">Individual Staff Breakdown</p>
                 <div className="grid gap-3">
-                  {group.individualCompletions.map((ind: any) => (
+                  {completions.map((ind: any) => (
                     <div key={ind.id} className="group space-y-2 p-3 rounded-lg border border-border bg-card/50 hover:border-primary/30 hover:bg-primary/5 transition-all">
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary group-hover:scale-110 transition-transform">
-                            {ind.name.split(' ').map((n:any)=>n[0]).join('')}
+                            {(ind.name || 'S').split(' ').map((n:any)=>n[0]).join('')}
                           </div>
                           <div>
-                            <p className="font-bold text-foreground leading-none">{ind.name}</p>
-                            <p className="text-[10px] text-muted-foreground mt-1">Last activity: Just now</p>
+                            <p className="font-bold text-foreground leading-none">{ind.name || 'Staff'}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">Status check: Active</p>
                           </div>
                         </div>
-                        <Badge variant="outline" className={`text-[10px] font-bold ${ind.status === 'behind' ? 'text-destructive border-destructive/20 bg-destructive/5' : ''}`}>
-                          {ind.status.replace('_', ' ')}
+                        <Badge variant="outline" className={`text-[10px] font-bold ${(ind.status || 'behind') === 'behind' ? 'text-destructive border-destructive/20 bg-destructive/5' : ''}`}>
+                          {(ind.status || 'Active').replace('_', ' ')}
                         </Badge>
                       </div>
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-[11px] text-muted-foreground">
                           <span className="font-medium">Performance Score</span>
-                          <span className="font-bold">{ind.current} / {ind.target} ({ind.progress}%)</span>
+                          <span className="font-bold">{ind.current || 0} / {ind.target || 0} ({ind.progress || 0}%)</span>
                         </div>
-                        <Progress value={Math.min(ind.progress, 100)} className="h-1.5" />
+                        <Progress value={Number(ind.progress) || 0} className="h-1.5" />
                       </div>
                     </div>
                   ))}
+                  {completions.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4 italic">No staff assigned to this metric yet</p>
+                  )}
                 </div>
               </div>
             )}
             
-            {!isExpanded && (
+            {!isExpanded && completions.length > 0 && (
               <Button 
                 variant="ghost" 
                 className="w-full text-xs text-primary h-9 gap-2 hover:bg-primary/5 border border-dashed border-primary/20"
                 onClick={() => setIsExpanded(true)}
               >
                 <Filter className="h-3 w-3" />
-                Click card to view individual staff details
+                View Individual Breakdown
               </Button>
             )}
           </div>
@@ -150,18 +167,18 @@ function KPICard({ group, isAdmin, getTemplateName, onSelect, index }: KPICardPr
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Overall Progress</span>
-                <span className="font-semibold text-primary">{Math.min(group.current_value / group.target_value * 100, 100)}%</span>
+                <span className="font-semibold text-primary">{Math.min(Number(group.current_value || 0) / (Number(group.target_value) || 1) * 100, 100).toFixed(0)}%</span>
               </div>
-              <Progress value={Math.min(group.current_value / group.target_value * 100, 100)} className="h-2.5" />
+              <Progress value={Math.min(Number(group.current_value || 0) / (Number(group.target_value) || 1) * 100, 100)} className="h-2.5" />
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm bg-muted/50 p-4 rounded-xl">
               <div>
                 <p className="text-muted-foreground mb-1">Current Value</p>
-                <p className="text-lg font-bold">{group.current_value}</p>
+                <p className="text-lg font-bold">{group.current_value || 0}</p>
               </div>
               <div>
                 <p className="text-muted-foreground mb-1">Target Value</p>
-                <p className="text-lg font-bold">{group.target_value}</p>
+                <p className="text-lg font-bold">{group.target_value || 0}</p>
               </div>
             </div>
           </div>
@@ -169,13 +186,13 @@ function KPICard({ group, isAdmin, getTemplateName, onSelect, index }: KPICardPr
         
         <div className="pt-4 border-t border-border flex items-center justify-between">
           <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-            Period: {new Date(group.period_start).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+            Period: {formatDate(group.period_start)}
           </p>
           <Button 
             variant="link" 
             size="sm" 
             className="text-xs h-8 text-primary font-bold p-0"
-            onClick={() => onSelect(isAdmin ? group.individualCompletions[0] : group, name)}
+            onClick={() => onSelect(isAdmin && completions.length > 0 ? completions[0] : group, name)}
           >
             Detailed Analytics
           </Button>
